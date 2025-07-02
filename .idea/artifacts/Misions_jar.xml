@@ -1,0 +1,8 @@
+<component name="ArtifactManager">
+  <artifact type="jar" name="Misions:jar">
+    <output-path>$USER_HOME$/Desktop/miplugin mods/plugins</output-path>
+    <root id="archive" name="Misions.jar">
+      <element id="module-output" name="Misions" />
+    </root>
+  </artifact>
+</component>

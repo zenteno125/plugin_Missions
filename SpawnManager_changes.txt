@@ -1,0 +1,115 @@
+// Cambios para el método spawnMobAndTrack:
+
+private void spawnMobAndTrack(Location loc, EntityType type) {
+    try {
+        // Añadir 1 bloque de altura para que aparezcan sobre la tierra
+        Location spawnLoc = loc.clone().add(0, 1, 0);
+
+        // Spawn normal de mob (sin reemplazo por aldeanos)
+        LivingEntity entity = (LivingEntity) spawnLoc.getWorld().spawnEntity(spawnLoc, type);
+
+        // Solo si el spawn fue exitoso, añadir al contador y tracking
+        if (entity != null) {
+            // Aplicar tag personalizado para evitar despawneo
+            String entityName = type.toString().toLowerCase().replace("_", "");
+            entity.addScoreboardTag("missions_enemy_" + entityName);
+
+            // Establecer que no desaparezca
+            entity.setPersistent(true);
+            entity.setRemoveWhenFarAway(false);
+
+            trackedMobs.put(entity.getUniqueId(), type);
+            totalMobsToKill++; // Incrementar el contador por cada mob real
+
+            // Actualizar el contador en GameManager también
+            GameManager.getInstance().setTotalMobsToSpawn(totalMobsToKill);
+
+            // Iniciar el verificador de últimos mobs si no está activo ya
+            startLastMobsChecker();
+        }
+    } catch (Exception e) {
+        Bukkit.getLogger().warning("Error al spawnear mob de tipo: " + type + " - " + e.getMessage());
+        // No incrementamos el contador ya que el mob no apareció
+    }
+}
+
+// Cambios para el método checkAndHighlightLastMobs:
+
+private void checkAndHighlightLastMobs() {
+    // Si no hay mobs o ya se mataron todos, no hacer nada
+    if (trackedMobs.isEmpty() || totalMobsToKill <= 0) {
+        return;
+    }
+
+    // Obtener el umbral configurado desde GameManager (por defecto 5%)
+    int thresholdPercent = GameManager.getInstance().getLastEnemiesThreshold();
+
+    // Calcular el umbral basado en el porcentaje configurado
+    // Aseguramos que sea al menos 1 mob
+    int threshold = Math.max(1, (int)(totalMobsToKill * thresholdPercent / 100.0));
+    int remainingMobs = trackedMobs.size();
+
+    // Si quedan pocos mobs (según umbral configurado), aplicar efectos visuales
+    if (remainingMobs <= threshold) {
+        // Evitar spam de mensajes (solo uno cada 10 segundos)
+        long currentTime = System.currentTimeMillis();
+        if (currentTime - lastMessageTime > 10000) {
+            lastMessageTime = currentTime;
+            Bukkit.broadcastMessage(ChatColor.RED + "¡Quedan " + remainingMobs + " enemigos! " +
+                    ChatColor.YELLOW + getRandomLastMobMessage());
+        }
+
+        // Aplicamos los efectos visuales a todos los mobs restantes
+        for (UUID mobId : trackedMobs.keySet()) {
+            for (World world : Bukkit.getWorlds()) {
+                for (org.bukkit.entity.Entity entity : world.getEntities()) {
+                    if (entity.getUniqueId().equals(mobId) && entity instanceof LivingEntity) {
+                        LivingEntity livingEntity = (LivingEntity) entity;
+
+                        // Aplicar efectos visuales duraderos para hacerlos más visibles
+                        livingEntity.addPotionEffect(
+                            new PotionEffect(
+                                PotionEffectType.GLOWING,
+                                100, // Duración de 5 segundos (100 ticks)
+                                1, // Nivel 1
+                                false, // Sin partículas
+                                true, // Mostrar iconos
+                                true  // Mostrar partículas
+                            )
+                        );
+
+                        // El efecto de brillo (GLOWING) hace que la entidad se vea a través de las paredes
+
+                        // Mejorar las partículas: más esparcidas y visibles pero no demasiado grandes
+                        Location particleLocation = livingEntity.getLocation().clone().add(0, 1.2, 0); // Justo encima de la cabeza
+
+                        // Partículas de fuego para mayor visibilidad
+                        livingEntity.getWorld().spawnParticle(
+                            org.bukkit.Particle.FLAME,
+                            particleLocation,
+                            8, // 8 partículas
+                            0.5, 0.3, 0.5, // Dispersión más amplia en XYZ para mayor visibilidad
+                            0.01 // Velocidad muy baja para que se queden cerca
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Añadir un método para matar a todos los mobs restantes cuando se salta la ronda
+public void killRemainingMobs() {
+    // Eliminar todos los mobs registrados
+    for (UUID mobId : new HashSet<>(trackedMobs.keySet())) {
+        for (World world : Bukkit.getWorlds()) {
+            for (org.bukkit.entity.Entity entity : world.getEntities()) {
+                if (entity.getUniqueId().equals(mobId)) {
+                    entity.remove();
+                    trackedMobs.remove(mobId);
+                    break;
+                }
+            }
+        }
+    }
+}

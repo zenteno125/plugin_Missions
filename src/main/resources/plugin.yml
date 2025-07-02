@@ -1,0 +1,15 @@
+main: com.zenteno125.MissionsPlugin
+version: 1.0.0
+author: zenteno125
+name: Missions
+api-version: 1.20
+commands:
+  missions:
+    alias: [m]
+    description: Command principal del plugin Missions
+    permission: missions.menu
+permissions:
+  missions.menu:
+    default: op
+  missions.admin:
+    default: op
